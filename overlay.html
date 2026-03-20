@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CricClubs Live Scorecard Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    /* ── Corner overlay box ── */
+    #scorecard-wrap {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      width: 480px;
+      height: 340px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      border: 2px solid rgba(255,255,255,0.15);
+      background: #0a0a0a;
+    }
+
+    /* ── Green header bar ── */
+    #scorecard-header {
+      width: 100%;
+      height: 32px;
+      background: linear-gradient(90deg, #1a6b1a, #0d3d0d);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+
+    #scorecard-header .title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #scorecard-header .title::before {
+      content: '🏏';
+      font-size: 14px;
+    }
+
+    #scorecard-header .refresh-info {
+      font-size: 11px;
+      color: rgba(255,255,255,0.65);
+    }
+
+    #countdown { color: #7dff7d; font-weight: 600; }
+
+    /* ── Scaled iframe ── */
+    #scorecard-frame {
+      border: none;
+      transform: scale(0.62);
+      transform-origin: top left;
+      width: calc(100% / 0.62);
+      height: calc((340px - 32px) / 0.62);
+    }
+
+    /* ── Fallback if iframe is blocked ── */
+    #blocked-msg {
+      display: none;
+      position: absolute;
+      top: 32px; left: 0; right: 0; bottom: 0;
+      background: #111;
+      color: #ccc;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
+      text-align: center;
+      padding: 20px 16px;
+      line-height: 1.8;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #blocked-msg strong { color: #fff; }
+    #blocked-msg a { color: #7dff7d; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div id="scorecard-wrap">
+
+    <div id="scorecard-header">
+      <span class="title">LIVE SCORECARD</span>
+      <span class="refresh-info">Refreshing in <span id="countdown">30</span>s</span>
+    </div>
+
+    <!--
+      ╔══════════════════════════════════════════════════════╗
+      ║  BEFORE EACH MATCH — update the src URL below with  ║
+      ║  your CricClubs scorecard link, for example:        ║
+      ║                                                      ║
+      ║  https://www.cricclubs.com/NOVA/viewScorecard.do    ║
+      ║       ?matchId=1234&clubId=5678                      ║
+      ║                                                      ║
+      ║  You can find this URL by opening the match on      ║
+      ║  cricclubs.com and copying it from your browser.    ║
+      ╚══════════════════════════════════════════════════════╝
+    -->
+    <iframe
+      id="scorecard-frame"
+      src="https://www.cricclubs.com/YOUR_LEAGUE/viewScorecard.do?matchId=XXXX&clubId=YYYY"
+      scrolling="no"
+      sandbox="allow-scripts allow-same-origin"
+      title="CricClubs Live Scorecard"
+    ></iframe>
+
+    <div id="blocked-msg">
+      ⚠️ Scorecard couldn't load in the overlay.<br/><br/>
+      <strong>CricClubs may be blocking iframes.</strong><br/>
+      Try pasting your CricClubs scorecard URL<br/>
+      directly as the Browser Source URL in Streamlabs,<br/>
+      then resize it to the corner of your scene.<br/><br/>
+      <a onclick="retryLoad()">↺ Tap to retry</a>
+    </div>
+
+  </div>
+
+  <script>
+    const REFRESH_SECONDS = 30; // ← change this if you want faster/slower refresh
+
+    let secondsLeft = REFRESH_SECONDS;
+    const countdownEl = document.getElementById('countdown');
+    const frame       = document.getElementById('scorecard-frame');
+    const blockedMsg  = document.getElementById('blocked-msg');
+    const originalSrc = frame.src;
+
+    // Detect iframe block (X-Frame-Options / CSP)
+    frame.addEventListener('load', () => {
+      try {
+        const doc = frame.contentDocument || frame.contentWindow.document;
+        if (!doc || doc.URL === 'about:blank') throw new Error('blocked');
+        blockedMsg.style.display = 'none';
+      } catch (e) {
+        blockedMsg.style.display = 'flex';
+        frame.style.display = 'none';
+      }
+    });
+
+    function retryLoad() {
+      blockedMsg.style.display = 'none';
+      frame.style.display = 'block';
+      refreshFrame();
+    }
+
+    function refreshFrame() {
+      // Bust cache by appending timestamp so browser fetches fresh page
+      const base = originalSrc.split('&_t=')[0];
+      frame.src = base + '&_t=' + Date.now();
+    }
+
+    // Countdown + auto-refresh every REFRESH_SECONDS
+    setInterval(() => {
+      secondsLeft--;
+      countdownEl.textContent = secondsLeft;
+      if (secondsLeft <= 0) {
+        secondsLeft = REFRESH_SECONDS;
+        refreshFrame();
+      }
+    }, 1000);
+  </script>
+
+</body>
+</html>
