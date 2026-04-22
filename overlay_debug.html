@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1.0" />
+  <title>CricClubs Live Overlay - Debug Version</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+
+    #card {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      width: 460px;
+      background: rgba(10, 10, 10, 0.92);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+      border: 1.5px solid rgba(255,255,255,0.12);
+    }
+
+    #header {
+      background: linear-gradient(90deg, #1a6b1a, #0d3d0d);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #header .left {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.4px;
+    }
+
+    #header .left::before { content: '🏏 '; }
+
+    #header .right {
+      font-size: 11px;
+      color: rgba(255,255,255,0.68);
+    }
+
+    #countdown { color: #7dff7d; font-weight: 700; }
+
+    #match-title {
+      background: rgba(255,255,255,0.05);
+      padding: 7px 14px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.58);
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .team-row {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      gap: 8px;
+    }
+
+    .team-row.batting { background: rgba(255,255,255,0.04); }
+
+    .team-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .team-row.batting .team-name,
+    .team-row.batting .team-score { color: #7dff7d; }
+
+    .team-score {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .team-overs {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      white-space: nowrap;
+    }
+
+    .live-badge {
+      background: #e53935;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    #batsmen-section {
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .section-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.35);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 5px;
+    }
+
+    .batsman-row, .bowler-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+      gap: 10px;
+    }
+
+    .batsman-name, .bowler-name {
+      font-size: 12px;
+      color: #ccc;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .batsman-name.strike {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .batsman-name.strike::after {
+      content: ' *';
+      color: #7dff7d;
+    }
+
+    .batsman-stat, .bowler-stat {
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    #bowler-section { padding: 8px 16px; }
+
+    #status {
+      padding: 12px 16px;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      display: none;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    #status.error {
+      color: #ff9b9b;
+      background: rgba(255, 80, 80, 0.08);
+    }
+
+    #debug {
+      display: none;
+      padding: 8px 14px 10px;
+      font-size: 10px;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.68);
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      word-break: break-word;
+    }
+
+    #last-updated {
+      padding: 4px 14px 6px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.25);
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+<div id="card">
+  <div id="header">
+    <span class="left">LIVE SCORECARD</span>
+    <span class="right">Refreshing in <span id="countdown">30</span>s</span>
+  </div>
+
+  <div id="match-title">Loading match...</div>
+  <div id="status">Fetching scores...</div>
+  <div id="debug"></div>
+
+  <div class="team-row" id="team1-row">
+    <span class="team-name" id="team1-name">—</span>
+    <span class="team-score" id="team1-score">—</span>
+    <span class="team-overs" id="team1-overs"></span>
+  </div>
+
+  <div class="team-row" id="team2-row">
+    <span class="team-name" id="team2-name">—</span>
+    <span class="team-score" id="team2-score">—</span>
+    <span class="team-overs" id="team2-overs"></span>
+    <span id="live-badge"></span>
+  </div>
+
+  <div id="batsmen-section">
+    <div class="section-label">At the crease</div>
+    <div class="batsman-row">
+      <span class="batsman-name strike" id="b1-name">—</span>
+      <span class="batsman-stat" id="b1-stat"></span>
+    </div>
+    <div class="batsman-row">
+      <span class="batsman-name" id="b2-name">—</span>
+      <span class="batsman-stat" id="b2-stat"></span>
+    </div>
+  </div>
+
+  <div id="bowler-section">
+    <div class="section-label">Bowling</div>
+    <div class="bowler-row">
+      <span class="bowler-name" id="bowler-name">—</span>
+      <span class="bowler-stat" id="bowler-stat"></span>
+    </div>
+  </div>
+
+  <div id="last-updated"></div>
+</div>
+
+<script>
+  /*
+    DROP-IN DEBUG VERSION
+
+    1) Replace CRICCLUBS_URL with the current live scorecard URL
+    2) Leave DEBUG = true at first so you can see the actual failure reason in Streamlabs
+    3) Once it works, set DEBUG = false
+    4) If proxy fails in Streamlabs, move to a JSON backend later
+  */
+
+  const CRICCLUBS_URL = 'https://cricclubs.com/vlccl/viewScorecard.do?matchId=8023&clubId=146';
+  const REFRESH_SECONDS = 30;
+  const DEBUG = true;
+
+  // Try multiple proxy patterns.
+  const PROXIES = [
+    (target) => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
+    (target) => `https://r.jina.ai/http://${target.replace(/^https?:\/\//, '')}`
+  ];
+
+  // Optional future JSON backend.
+  // Example:
+  // const JSON_ENDPOINT = 'https://warunl.github.io/cricclubs-overlay/score.json';
+  const JSON_ENDPOINT = '';
+
+  const $ = id => document.getElementById(id);
+  const countdown  = $('countdown');
+  const matchTitle = $('match-title');
+  const statusEl   = $('status');
+  const debugEl    = $('debug');
+  const team1Row   = $('team1-row');
+  const team2Row   = $('team2-row');
+  const liveBadge  = $('live-badge');
+
+  let secondsLeft = REFRESH_SECONDS;
+  let lastSuccessMode = 'none';
+
+  function clean(el) {
+    return el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : '';
+  }
+
+  function q(doc, selectors) {
+    for (const s of selectors) {
+      try {
+        const el = doc.querySelector(s);
+        if (el) return el;
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  function qa(doc, selectors) {
+    for (const s of selectors) {
+      try {
+        const els = [...doc.querySelectorAll(s)];
+        if (els.length) return els;
+      } catch (e) {}
+    }
+    return [];
+  }
+
+  function showStatus(text, isError = false) {
+    statusEl.textContent = text;
+    statusEl.className = isError ? 'error' : '';
+    statusEl.style.display = 'block';
+  }
+
+  function hideStatus() {
+    statusEl.style.display = 'none';
+  }
+
+  function showDebug(lines) {
+    if (!DEBUG) return;
+    debugEl.style.display = 'block';
+    debugEl.innerHTML = lines.map(x => escapeHtml(String(x))).join('<br/>');
+  }
+
+  function hideDebug() {
+    if (!DEBUG) return;
+    debugEl.style.display = 'none';
+    debugEl.innerHTML = '';
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function resetFieldsIfNeeded() {
+    $('team1-name').textContent = '—';
+    $('team1-score').textContent = '—';
+    $('team1-overs').textContent = '';
+    $('team2-name').textContent = '—';
+    $('team2-score').textContent = '—';
+    $('team2-overs').textContent = '';
+    $('b1-name').textContent = '—';
+    $('b1-stat').textContent = '';
+    $('b2-name').textContent = '—';
+    $('b2-stat').textContent = '';
+    $('bowler-name').textContent = '—';
+    $('bowler-stat').textContent = '';
+    liveBadge.innerHTML = '';
+    team1Row.classList.remove('batting');
+    team2Row.classList.remove('batting');
+  }
+
+  async function fetchText(url, modeLabel) {
+    const res = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store'
+    });
+
+    if (!res.ok) {
+      throw new Error(`${modeLabel}: HTTP ${res.status}`);
+    }
+
+    const text = await res.text();
+    if (!text || text.trim().length < 100) {
+      throw new Error(`${modeLabel}: empty/short response`);
+    }
+    return text;
+  }
+
+  function parseFromHtml(contents) {
+    const doc = new DOMParser().parseFromString(contents, 'text/html');
+    const bodyText = doc.body?.innerText || doc.body?.textContent || '';
+
+    const titleEl = q(doc, ['h1', 'h2', '.match-title', '.matchTitle', 'title']);
+    const titleText = titleEl
+      ? clean(titleEl).replace(/CricClubs/gi, '').replace(/\|/g, '').trim()
+      : 'VLCCL Match';
+
+    const teamEls = qa(doc, [
+      '.team-name',
+      '.teamName',
+      '.teamname',
+      'table.scorecard thead th:not(:empty)',
+      '.innings-title',
+      '.inningsTitle'
+    ]);
+
+    const scoreEls = qa(doc, [
+      '.total-runs',
+      '.totalRuns',
+      '.innings-score',
+      '.score',
+      '.runs-wickets',
+      '.scoreTotal'
+    ]);
+
+    const scoreMatches = [...bodyText.matchAll(/\b(\d{1,3})\/(\d{1,2})\b/g)];
+    const oversMatches = [...bodyText.matchAll(/\((\d{1,2}(?:\.\d)?)\s*(?:Ov|ov|overs?)\)/g)];
+
+    const batsmenEls = qa(doc, [
+      '.batsman',
+      '.batsmanName',
+      '.batsman-name',
+      '.batting-scorecard tr td:first-child',
+      '.batting td.player-name',
+      'td.batsman-name'
+    ]).filter(el => {
+      const t = clean(el);
+      return t && t.length > 2 && !/^(batsman|name|player)$/i.test(t);
+    });
+
+    const bowlerEls = qa(doc, [
+      '.bowler',
+      '.bowlerName',
+      '.bowler-name',
+      '.bowling-scorecard tr td:first-child',
+      '.bowling td.player-name',
+      'td.bowler-name'
+    ]).filter(el => {
+      const t = clean(el);
+      return t && t.length > 2 && !/^(bowler|name|player)$/i.test(t);
+    });
+
+    return {
+      source: 'html',
+      title: titleText || 'VLCCL Match',
+      team1Name: teamEls[0] ? clean(teamEls[0]) : 'Team 1',
+      team2Name: teamEls[1] ? clean(teamEls[1]) : 'Team 2',
+      team1Score: scoreEls[0] ? clean(scoreEls[0]) : (scoreMatches[0] ? `${scoreMatches[0][1]}/${scoreMatches[0][2]}` : '—'),
+      team2Score: scoreEls[1] ? clean(scoreEls[1]) : (scoreMatches[1] ? `${scoreMatches[1][1]}/${scoreMatches[1][2]}` : '—'),
+      team1Overs: oversMatches[0] ? `(${oversMatches[0][1]} ov)` : '',
+      team2Overs: oversMatches[1] ? `(${oversMatches[1][1]} ov)` : '',
+      batsmenEls,
+      bowlerEls,
+      doc,
+      debugCounts: {
+        teamEls: teamEls.length,
+        scoreEls: scoreEls.length,
+        scoreMatches: scoreMatches.length,
+        oversMatches: oversMatches.length,
+        batsmenEls: batsmenEls.length,
+        bowlerEls: bowlerEls.length
+      }
+    };
+  }
+
+  function applyParsedData(parsed) {
+    matchTitle.textContent = parsed.title || 'VLCCL Match';
+
+    $('team1-name').textContent = parsed.team1Name || 'Team 1';
+    $('team2-name').textContent = parsed.team2Name || 'Team 2';
+    $('team1-score').textContent = parsed.team1Score || '—';
+    $('team2-score').textContent = parsed.team2Score || '—';
+    $('team1-overs').textContent = parsed.team1Overs || '';
+    $('team2-overs').textContent = parsed.team2Overs || '';
+
+    // Default assumption: team2 batting, same as your original.
+    team2Row.classList.add('batting');
+    team1Row.classList.remove('batting');
+    liveBadge.innerHTML = '<span class="live-badge">LIVE</span>';
+
+    if (parsed.batsmenEls && parsed.batsmenEls[0]) {
+      const row = parsed.batsmenEls[0].closest('tr');
+      const cells = row ? [...row.querySelectorAll('td')] : [];
+      $('b1-name').textContent = clean(parsed.batsmenEls[0]);
+      if (cells.length >= 3) $('b1-stat').textContent = `${clean(cells[1])}(${clean(cells[2])})`;
+    }
+
+    if (parsed.batsmenEls && parsed.batsmenEls[1]) {
+      const row = parsed.batsmenEls[1].closest('tr');
+      const cells = row ? [...row.querySelectorAll('td')] : [];
+      $('b2-name').textContent = clean(parsed.batsmenEls[1]);
+      if (cells.length >= 3) $('b2-stat').textContent = `${clean(cells[1])}(${clean(cells[2])})`;
+    }
+
+    if (parsed.bowlerEls && parsed.bowlerEls[0]) {
+      const row = parsed.bowlerEls[0].closest('tr');
+      const cells = row ? [...row.querySelectorAll('td')] : [];
+      $('bowler-name').textContent = clean(parsed.bowlerEls[0]);
+      if (cells.length >= 4) {
+        $('bowler-stat').textContent = `${clean(cells[1])}-${clean(cells[2])}-${clean(cells[3])}`;
+      }
+    }
+  }
+
+  async function tryJsonEndpoint() {
+    if (!JSON_ENDPOINT) {
+      throw new Error('JSON endpoint not configured');
+    }
+
+    const res = await fetch(`${JSON_ENDPOINT}${JSON_ENDPOINT.includes('?') ? '&' : '?'}_t=${Date.now()}`, {
+      method: 'GET',
+      cache: 'no-store'
+    });
+
+    if (!res.ok) throw new Error(`JSON endpoint: HTTP ${res.status}`);
+
+    const data = await res.json();
+
+    if (!data || typeof data !== 'object') {
+      throw new Error('JSON endpoint: invalid JSON');
+    }
+
+    if (!data.team1Name && !data.team2Name && !data.team1Score && !data.team2Score) {
+      throw new Error('JSON endpoint: missing score fields');
+    }
+
+    return {
+      source: 'json',
+      title: data.title || 'VLCCL Match',
+      team1Name: data.team1Name || 'Team 1',
+      team2Name: data.team2Name || 'Team 2',
+      team1Score: data.team1Score || '—',
+      team2Score: data.team2Score || '—',
+      team1Overs: data.team1Overs || '',
+      team2Overs: data.team2Overs || '',
+      batsmen: data.batsmen || [],
+      bowler: data.bowler || null,
+      raw: data
+    };
+  }
+
+  function applyJsonData(parsed) {
+    matchTitle.textContent = parsed.title || 'VLCCL Match';
+    $('team1-name').textContent = parsed.team1Name || 'Team 1';
+    $('team2-name').textContent = parsed.team2Name || 'Team 2';
+    $('team1-score').textContent = parsed.team1Score || '—';
+    $('team2-score').textContent = parsed.team2Score || '—';
+    $('team1-overs').textContent = parsed.team1Overs || '';
+    $('team2-overs').textContent = parsed.team2Overs || '';
+
+    team2Row.classList.add('batting');
+    team1Row.classList.remove('batting');
+    liveBadge.innerHTML = '<span class="live-badge">LIVE</span>';
+
+    if (parsed.batsmen[0]) {
+      $('b1-name').textContent = parsed.batsmen[0].name || '—';
+      $('b1-stat').textContent = parsed.batsmen[0].stat || '';
+    }
+    if (parsed.batsmen[1]) {
+      $('b2-name').textContent = parsed.batsmen[1].name || '—';
+      $('b2-stat').textContent = parsed.batsmen[1].stat || '';
+    }
+    if (parsed.bowler) {
+      $('bowler-name').textContent = parsed.bowler.name || '—';
+      $('bowler-stat').textContent = parsed.bowler.stat || '';
+    }
+  }
+
+  async function fetchScores() {
+    const debugLines = [];
+    try {
+      resetFieldsIfNeeded();
+      showStatus('Fetching scores...');
+      debugLines.push(`Start: ${new Date().toLocaleTimeString()}`);
+      debugLines.push(`Match URL: ${CRICCLUBS_URL}`);
+
+      // Preferred future path
+      if (JSON_ENDPOINT) {
+        debugLines.push(`Trying JSON endpoint first...`);
+        const jsonParsed = await tryJsonEndpoint();
+        applyJsonData(jsonParsed);
+        lastSuccessMode = 'json';
+        hideStatus();
+        showDebug([
+          ...debugLines,
+          `Success mode: JSON endpoint`
+        ]);
+        $('last-updated').textContent = 'Updated ' +
+          new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+        return;
+      }
+
+      let lastError = null;
+
+      for (let i = 0; i < PROXIES.length; i++) {
+        const proxyUrl = `${PROXIES[i](CRICCLUBS_URL)}${PROXIES[i](CRICCLUBS_URL).includes('?') ? '&' : '?'}_t=${Date.now()}`;
+        try {
+          debugLines.push(`Trying proxy ${i + 1}: ${proxyUrl}`);
+          const contents = await fetchText(proxyUrl, `Proxy ${i + 1}`);
+          debugLines.push(`Proxy ${i + 1}: response length ${contents.length}`);
+
+          const parsed = parseFromHtml(contents);
+
+          debugLines.push(`Parsed title: ${parsed.title}`);
+          debugLines.push(`Found teamEls=${parsed.debugCounts.teamEls}, scoreEls=${parsed.debugCounts.scoreEls}, regexScores=${parsed.debugCounts.scoreMatches}, batsmen=${parsed.debugCounts.batsmenEls}, bowlers=${parsed.debugCounts.bowlerEls}`);
+
+          // Require at least some useful score signal
+          const hasUsefulScore =
+            (parsed.team1Score && parsed.team1Score !== '—') ||
+            (parsed.team2Score && parsed.team2Score !== '—');
+
+          if (!hasUsefulScore) {
+            throw new Error(`Proxy ${i + 1}: fetched HTML but could not extract score`);
+          }
+
+          applyParsedData(parsed);
+          lastSuccessMode = `proxy-${i + 1}`;
+          hideStatus();
+          showDebug([
+            ...debugLines,
+            `Success mode: proxy ${i + 1}`
+          ]);
+          $('last-updated').textContent = 'Updated ' +
+            new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+          return;
+        } catch (err) {
+          lastError = err;
+          debugLines.push(`Proxy ${i + 1} failed: ${err.message}`);
+        }
+      }
+
+      throw lastError || new Error('All fetch modes failed');
+    } catch (err) {
+      console.error('Overlay fetch failed:', err);
+      showStatus(`⚠️ ${err?.message || 'Unknown error'}`, true);
+      showDebug([
+        ...debugLines,
+        `Final error: ${err?.message || 'Unknown error'}`,
+        `Last success mode: ${lastSuccessMode}`
+      ]);
+      $('last-updated').textContent = 'Failed at ' +
+        new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    }
+  }
+
+  fetchScores();
+
+  setInterval(() => {
+    secondsLeft -= 1;
+    countdown.textContent = secondsLeft;
+    if (secondsLeft <= 0) {
+      secondsLeft = REFRESH_SECONDS;
+      countdown.textContent = secondsLeft;
+      fetchScores();
+    }
+  }, 1000);
+</script>
+</body>
+</html>
