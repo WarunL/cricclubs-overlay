@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>CricClubs Live Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+
+    /* ── Corner card (bottom-right) ── */
+    #card {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      width: 460px;
+      background: rgba(10, 10, 10, 0.92);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+      border: 1.5px solid rgba(255,255,255,0.12);
+    }
+
+    /* ── Header ── */
+    #header {
+      background: linear-gradient(90deg, #1a6b1a, #0d3d0d);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #header .left {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.4px;
+    }
+    #header .left::before { content: '🏏 '; }
+    #header .right {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+    }
+    #countdown { color: #7dff7d; font-weight: 700; }
+
+    /* ── Match title ── */
+    #match-title {
+      background: rgba(255,255,255,0.05);
+      padding: 7px 14px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Team score rows ── */
+    .team-row {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      gap: 8px;
+    }
+    .team-row.batting { background: rgba(255,255,255,0.04); }
+
+    .team-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .team-row.batting .team-name { color: #7dff7d; }
+
+    .team-score {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      white-space: nowrap;
+    }
+    .team-row.batting .team-score { color: #7dff7d; }
+
+    .team-overs {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      white-space: nowrap;
+    }
+
+    .live-badge {
+      background: #e53935;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ── Batsmen ── */
+    #batsmen-section {
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .section-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.35);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 5px;
+    }
+    .batsman-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+    .batsman-name { font-size: 12px; color: #ccc; }
+    .batsman-name.strike { color: #fff; font-weight: 700; }
+    .batsman-name.strike::after { content: ' *'; color: #7dff7d; }
+    .batsman-stat { font-size: 12px; color: rgba(255,255,255,0.5); }
+
+    /* ── Bowler ── */
+    #bowler-section { padding: 8px 16px; }
+    .bowler-row { display: flex; justify-content: space-between; }
+    .bowler-name { font-size: 12px; color: #ccc; }
+    .bowler-stat { font-size: 12px; color: rgba(255,255,255,0.5); }
+
+    /* ── Status ── */
+    #status {
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      display: none;
+    }
+    #status.error { color: #ff6b6b; }
+
+    #last-updated {
+      padding: 4px 14px 6px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.25);
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+<div id="card">
+
+  <div id="header">
+    <span class="left">LIVE SCORECARD</span>
+    <span class="right">Refreshing in <span id="countdown">30</span>s</span>
+  </div>
+
+  <div id="match-title">Loading match...</div>
+  <div id="status">Fetching scores...</div>
+
+  <div class="team-row" id="team1-row">
+    <span class="team-name" id="team1-name">—</span>
+    <span class="team-score" id="team1-score">—</span>
+    <span class="team-overs" id="team1-overs"></span>
+  </div>
+
+  <div class="team-row" id="team2-row">
+    <span class="team-name" id="team2-name">—</span>
+    <span class="team-score" id="team2-score">—</span>
+    <span class="team-overs" id="team2-overs"></span>
+    <span id="live-badge"></span>
+  </div>
+
+  <div id="batsmen-section">
+    <div class="section-label">At the crease</div>
+    <div class="batsman-row">
+      <span class="batsman-name strike" id="b1-name">—</span>
+      <span class="batsman-stat" id="b1-stat"></span>
+    </div>
+    <div class="batsman-row">
+      <span class="batsman-name" id="b2-name">—</span>
+      <span class="batsman-stat" id="b2-stat"></span>
+    </div>
+  </div>
+
+  <div id="bowler-section">
+    <div class="section-label">Bowling</div>
+    <div class="bowler-row">
+      <span class="bowler-name" id="bowler-name">—</span>
+      <span class="bowler-stat" id="bowler-stat"></span>
+    </div>
+  </div>
+
+  <div id="last-updated"></div>
+</div>
+
+<script>
+  // ╔═══════════════════════════════════════════════════════╗
+  // ║  UPDATE THIS URL before every match                  ║
+  // ║  Find your match on cricclubs.com, copy the URL      ║
+  // ╚═══════════════════════════════════════════════════════╝
+  const CRICCLUBS_URL = 'https://cricclubs.com/vlccl/viewScorecard.do?matchId=8023&clubId=146';
+
+  const REFRESH_SECONDS = 30;
+  const PROXY = 'https://corsproxy.io/?url=';
+
+  // DOM
+  const $ = id => document.getElementById(id);
+  const countdown  = $('countdown');
+  const matchTitle = $('match-title');
+  const statusEl   = $('status');
+  const team1Row   = $('team1-row');
+  const team2Row   = $('team2-row');
+  const liveBadge  = $('live-badge');
+
+  let secondsLeft = REFRESH_SECONDS;
+
+  function clean(el) {
+    return el ? el.textContent.replace(/\s+/g,' ').trim() : '';
+  }
+
+  function q(doc, selectors) {
+    for (const s of selectors) {
+      try { const el = doc.querySelector(s); if (el) return el; } catch(e){}
+    }
+    return null;
+  }
+
+  function qa(doc, selectors) {
+    for (const s of selectors) {
+      try {
+        const els = [...doc.querySelectorAll(s)];
+        if (els.length) return els;
+      } catch(e){}
+    }
+    return [];
+  }
+
+  async function fetchScores() {
+    try {
+      const url = PROXY + encodeURIComponent(CRICCLUBS_URL) + '&_t=' + Date.now();
+      const res  = await fetch(url);
+      if (!res.ok) throw new Error('proxy error ' + res.status);
+      const contents = await res.text();
+      if (!contents || contents.length < 100) throw new Error('empty response');
+
+      const doc = new DOMParser().parseFromString(contents, 'text/html');
+
+      // ── Title ──
+      const titleEl = q(doc, ['h1','h2','.match-title','.matchTitle','title']);
+      if (titleEl) {
+        matchTitle.textContent = clean(titleEl)
+          .replace(/CricClubs/gi,'').replace(/\|/g,'').trim() || 'VLCCL Match';
+      }
+
+      // ── Team names ──
+      const teamEls = qa(doc, [
+        '.team-name','.teamName','.teamname',
+        'table.scorecard thead th:not(:empty)',
+        '.innings-title','.inningsTitle'
+      ]);
+
+      if (teamEls.length >= 1) $('team1-name').textContent = clean(teamEls[0]) || 'Team 1';
+      if (teamEls.length >= 2) $('team2-name').textContent = clean(teamEls[1]) || 'Team 2';
+
+      // ── Scores: look for "runs/wickets" pattern in the page ──
+      const text   = doc.body?.innerText || doc.body?.textContent || '';
+      const scores = [...text.matchAll(/\b(\d{1,3})\/(\d{1,2})\b/g)];
+      const overs  = [...text.matchAll(/\((\d{1,2}(?:\.\d)?)\s*(?:Ov|ov|overs?)\)/g)];
+
+      // Also try structured score elements
+      const scoreEls = qa(doc, [
+        '.total-runs','.totalRuns','.innings-score',
+        '.score','.runs-wickets','.scoreTotal'
+      ]);
+
+      if (scoreEls.length >= 1) {
+        $('team1-score').textContent = clean(scoreEls[0]);
+        $('team1-overs').textContent = overs[0] ? `(${overs[0][1]} ov)` : '';
+      } else if (scores.length >= 1) {
+        $('team1-score').textContent = `${scores[0][1]}/${scores[0][2]}`;
+        $('team1-overs').textContent = overs[0] ? `(${overs[0][1]} ov)` : '';
+      }
+
+      if (scoreEls.length >= 2) {
+        $('team2-score').textContent = clean(scoreEls[1]);
+        $('team2-overs').textContent = overs[1] ? `(${overs[1][1]} ov)` : '';
+      } else if (scores.length >= 2) {
+        $('team2-score').textContent = `${scores[1][1]}/${scores[1][2]}`;
+        $('team2-overs').textContent = overs[1] ? `(${overs[1][1]} ov)` : '';
+      }
+
+      // ── Highlight batting team + LIVE badge ──
+      team2Row.classList.add('batting');
+      team1Row.classList.remove('batting');
+      liveBadge.innerHTML = '<span class="live-badge">LIVE</span>';
+
+      // ── Batsmen ──
+      const batsmenEls = qa(doc, [
+        '.batsman','.batsmanName','.batsman-name',
+        '.batting-scorecard tr td:first-child',
+        '.batting td.player-name','td.batsman-name'
+      ]).filter(el => {
+        const t = clean(el);
+        return t && t.length > 2 && !/^(batsman|name|player)/i.test(t);
+      });
+
+      if (batsmenEls[0]) {
+        $('b1-name').textContent = clean(batsmenEls[0]);
+        const row = batsmenEls[0].closest('tr');
+        const cells = row ? [...row.querySelectorAll('td')] : [];
+        if (cells.length >= 3) $('b1-stat').textContent = `${clean(cells[1])}(${clean(cells[2])})`;
+      }
+      if (batsmenEls[1]) {
+        $('b2-name').textContent = clean(batsmenEls[1]);
+        const row = batsmenEls[1].closest('tr');
+        const cells = row ? [...row.querySelectorAll('td')] : [];
+        if (cells.length >= 3) $('b2-stat').textContent = `${clean(cells[1])}(${clean(cells[2])})`;
+      }
+
+      // ── Bowler ──
+      const bowlerEls = qa(doc, [
+        '.bowler','.bowlerName','.bowler-name',
+        '.bowling-scorecard tr td:first-child',
+        '.bowling td.player-name','td.bowler-name'
+      ]).filter(el => {
+        const t = clean(el);
+        return t && t.length > 2 && !/^(bowler|name|player)/i.test(t);
+      });
+
+      if (bowlerEls[0]) {
+        $('bowler-name').textContent = clean(bowlerEls[0]);
+        const row = bowlerEls[0].closest('tr');
+        const cells = row ? [...row.querySelectorAll('td')] : [];
+        if (cells.length >= 4) $('bowler-stat').textContent =
+          `${clean(cells[1])}-${clean(cells[2])}-${clean(cells[3])}`;
+      }
+
+      // ── Done ──
+      statusEl.style.display = 'none';
+      $('last-updated').textContent = 'Updated ' +
+        new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+
+    } catch(err) {
+      statusEl.textContent = '⚠️ Retrying...';
+      statusEl.className   = 'error';
+      statusEl.style.display = 'block';
+      $('last-updated').textContent = 'Failed at ' +
+        new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    }
+  }
+
+  // Kick off immediately, then countdown
+  fetchScores();
+  setInterval(() => {
+    countdown.textContent = --secondsLeft;
+    if (secondsLeft <= 0) { secondsLeft = REFRESH_SECONDS; fetchScores(); }
+  }, 1000);
+</script>
+</body>
+</html>
